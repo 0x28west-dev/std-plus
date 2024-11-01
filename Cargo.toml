@@ -1,0 +1,9 @@
+[package]
+edition = "2021"
+name = "util_rs"
+version = "0.1.0"
+
+[dependencies]
+base64 = "0.22.1"
+derive-new = {version = "0.7.0"}
+rusty_paseto = "0.7.1"
