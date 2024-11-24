@@ -6,8 +6,8 @@ use base64::{
     },
     DecodeError, Engine as _,
 };
-use std::{env, marker::PhantomData, str::FromStr};
-
+use serde::{Serialize, Serializer};
+use std::{fmt::Debug, marker::PhantomData};
 //  Re - export
 pub use derive_new::new;
 
@@ -252,6 +252,71 @@ pub trait Encryption {
     fn decrypt<T>(&self, content: Self::Success, claim: Self::Claim) -> Result<T, Self::Error>;
 }
 
+/// A struct representing a sensitive string with safe handling for display and serialization.
+#[derive(new)]
+pub struct Sensitive<T> {
+    content: T,
+}
+
+impl<T> std::ops::Deref for Sensitive<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.content
+    }
+}
+
+impl<T> std::fmt::Display for Sensitive<T>
+where
+    T: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if cfg!(debug_assertions) {
+            // In debug mode, display the actual content for easier testing.
+            write!(f, "{}", self.content)
+        } else {
+            // In release mode, redact the Sensitive to prevent leaks.
+            write!(f, "<Content: REDACTED>")
+        }
+    }
+}
+
+impl<T> std::fmt::Debug for Sensitive<T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if cfg!(debug_assertions) {
+            f.debug_struct("Sensitive")
+                .field("content", &self.content)
+                .finish()
+        } else {
+            f.debug_struct("Sensitive")
+                .field("content", &"<Content: REDACTED>")
+                .finish()
+        }
+    }
+}
+
+// Implement `Serialize` to safely handle Sensitive serialization.
+impl<T> Serialize for Sensitive<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if cfg!(debug_assertions) {
+            // In debug mode, serialize the actual content.
+            self.content.serialize(serializer)
+        } else {
+            // In release mode, redact the content to prevent leaks.
+            serializer.serialize_str("<Content: REDACTED>")
+        }
+    }
+}
+
 /// ```no_rust
 /// Base64
 ///
@@ -390,6 +455,31 @@ macro_rules! header {
 #[cfg(test)]
 pub mod test {
     use super::*;
+
+    use super::Sensitive;
+    use serde_json::to_string;
+
+    #[test]
+    fn test_sensitive_display() {
+        let sensitive = Sensitive::new(string!("secret"));
+
+        if cfg!(debug_assertions) {
+            assert_eq!(format!("{}", sensitive), "secret");
+        } else {
+            assert_eq!(format!("{}", sensitive), "<Content: REDACTED>");
+        }
+    }
+
+    #[test]
+    fn test_serializer_sensitive() {
+        let sensitive = Sensitive::new(string!("secret"));
+
+        if cfg!(debug_assertions) {
+            assert_eq!(to_string(&sensitive).unwrap(), "\"secret\"");
+        } else {
+            assert_eq!(to_string(&sensitive).unwrap(), "\"<Content: REDACTED>\"");
+        }
+    }
 
     #[test]
     fn test_header() {
