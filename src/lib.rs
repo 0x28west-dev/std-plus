@@ -192,18 +192,15 @@ pub enum HashingResult {
 
     /// Verification succeeded.
     Success,
-
-    /// Verification succeeded, but the hash was generated using a deprecated algorithm.
-    ///
-    /// This indicates that the hash should be recomputed using the latest algorithm
-    /// to maintain security and compatibility.
-    ReHashNeeded,
 }
 
 /// A trait for hashing and verifying data.
 ///
 /// This trait defines methods for computing hashes and verifying them.
 pub trait Hashing {
+    /// Useful for logging or marking a hashed password
+    const NAME: &'static str;
+
     /// Computes a hash for the given content.
     ///
     /// # Notes
@@ -233,6 +230,7 @@ pub trait Hashing {
     /// A `HashingResult` indicating whether the verification succeeded, failed or rehash needed!.
     fn verify(&self, content: &str, other: &str) -> HashingResult;
 }
+
 // Update comment of the code below and make it better
 pub trait Encoding {
     const NAME: &'static str;
