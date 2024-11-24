@@ -6,7 +6,7 @@ use base64::{
     },
     DecodeError, Engine as _,
 };
-use serde::{Serialize, Serializer};
+use serde::{de::value, Deserialize, Serialize, Serializer};
 use std::{fmt::Debug, marker::PhantomData};
 //  Re - export
 pub use derive_new::new;
@@ -253,7 +253,7 @@ pub trait Encryption {
 }
 
 /// A struct representing a sensitive string with safe handling for display and serialization.
-#[derive(new)]
+#[derive(new, Deserialize, Clone, Eq, PartialEq)]
 pub struct Sensitive<T> {
     content: T,
 }
@@ -314,6 +314,12 @@ where
             // In release mode, redact the content to prevent leaks.
             serializer.serialize_str("<Content: REDACTED>")
         }
+    }
+}
+
+impl<T> From<T> for Sensitive<T> {
+    fn from(value: T) -> Self {
+        Self::new(value)
     }
 }
 
