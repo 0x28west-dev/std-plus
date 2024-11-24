@@ -14,12 +14,14 @@ pub use derive_new::new;
 #[derive(Debug)]
 pub struct W<T>(pub T);
 
-pub fn get_env(name: &'static str) -> core::result::Result<String, String> {
-    env::var(name).map_err(|_| f!("{} not found in environment", name))
+/// Get an environment variable by name, returning an error message if not found.
+pub fn get_env(name: &'static str) -> Result<String, String> {
+    std::env::var(name).map_err(|_| format!("{} not found in environment", name))
 }
 
-pub fn get_env_parse<T: FromStr>(name: &'static str) -> core::result::Result<T, String> {
-    let msg = f!(
+/// Get and parse an environment variable into the desired type `T`.
+pub fn get_env_parse<T: std::str::FromStr>(name: &'static str) -> Result<T, String> {
+    let msg = format!(
         "Failed to parse {} into {}",
         name,
         std::any::type_name::<T>()
@@ -37,17 +39,17 @@ macro_rules! lazy_lock {
     };
 }
 
-#[doc = "Return the error provided if the predicate is false"]
+/// Ensure a predicate is true; return an error otherwise.
 #[macro_export]
 macro_rules! ensure {
-    ($pred:expr,  $err:expr) => {
+    ($pred:expr, $err:expr) => {
         if !$pred {
             return Err($err);
         }
     };
 }
 
-#[doc = "Return error always, this function short circuit"]
+/// Always return an error; used for early exits.
 #[macro_export]
 macro_rules! err {
     ($err:expr) => {
@@ -55,6 +57,7 @@ macro_rules! err {
     };
 }
 
+/// Safely lock a mutex, optionally returning an error on failure.
 #[macro_export]
 macro_rules! lock {
     ($lock:expr) => {
@@ -68,6 +71,7 @@ macro_rules! lock {
     }};
 }
 
+/// Clone an expression.
 #[macro_export]
 macro_rules! clone {
     ($expr:expr) => {
@@ -75,13 +79,15 @@ macro_rules! clone {
     };
 }
 
+/// Get the duration since a specific `Instant`.
 #[macro_export]
 macro_rules! duration_since {
-    ($earlier:expr) => {{
+    ($earlier:expr) => {
         std::time::Instant::now().duration_since($earlier)
-    }};
+    };
 }
 
+/// Simplified string formatting.
 #[macro_export]
 macro_rules! f {
     ($($arg:tt)*) => {
@@ -89,11 +95,11 @@ macro_rules! f {
     };
 }
 
+/// Implement `Error` and `Display` for a type.
 #[macro_export]
 macro_rules! impl_error_display {
     ($ident:ident) => {
         impl std::error::Error for $ident {}
-
         impl std::fmt::Display for $ident {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "Error: {:?}", self)
@@ -102,13 +108,18 @@ macro_rules! impl_error_display {
     };
 }
 
+/// Return `Some` for an optional value, or `None` otherwise.
 #[macro_export]
 macro_rules! opt {
-    ($( $value:expr )?) => {{
-        match ($(Some($value))?) {$(| Some(_) => Some($value),)?| _ => None}
-    }};
+    ($( $value:expr )?) => {
+        match ($(Some($value))?) {
+            Some(_) => Some($value),
+            _ => None,
+        }
+    };
 }
 
+/// Create an `Arc` for a value.
 #[macro_export]
 macro_rules! arc {
     ($value:expr) => {
@@ -116,6 +127,7 @@ macro_rules! arc {
     };
 }
 
+/// Create a `Mutex` for a value.
 #[macro_export]
 macro_rules! mutex {
     ($value:expr) => {
@@ -123,58 +135,105 @@ macro_rules! mutex {
     };
 }
 
+/// Create a static reference from a type and data using `LazyLock`.
 #[macro_export]
 macro_rules! to_static {
-    ($ty:ty, $data:expr) => {{
+    ($ty:ty, $data:expr) => {
         static DATA: std::sync::LazyLock<$ty> = $crate::lazy_lock!($data);
         &*DATA
-    }};
+    };
 }
 
+/// Create strings in various formats.
 #[doc = r#"
-```not_rust
 string!() => Empty String
+
 string!(content) => String with content
+
 string!(u8: content) => String from u8
-string!(u8l: content) => String from lossy U8 can fail
+
+string!(u8l: content) => String from lossy U8 (can fail)
+
 string!(u16: content) => String from u16
-string!(u16l: content) => String from lossy u16 can fail
-```
+
+string!(u16l: content) => String from lossy u16 (can fail)
 "#]
 #[macro_export]
 macro_rules! string {
     () => {
         String::new()
     };
-
     ($content:expr) => {
         String::from($content)
     };
-
     ($content:expr, $cap:expr) => {{
         let mut string = String::with_capacity($cap);
         string.push_str($content);
         string
     }};
-
-    // From Methods
     (u8: $content:expr) => {
         String::from_utf8($content)
     };
-
     (u8l: $content:expr) => {
         String::from_utf8_lossy($content)
     };
-
     (u16: $content:expr) => {
         String::from_utf16($content)
     };
-
     (u16l: $content:expr) => {
         String::from_utf16_lossy($content)
     };
 }
 
+/// Represents the result of a hashing verification process.
+pub enum HashingResult {
+    /// Verification failed.
+    Failed,
+
+    /// Verification succeeded.
+    Success,
+
+    /// Verification succeeded, but the hash was generated using a deprecated algorithm.
+    ///
+    /// This indicates that the hash should be recomputed using the latest algorithm
+    /// to maintain security and compatibility.
+    ReHashNeeded,
+}
+
+/// A trait for hashing and verifying data.
+///
+/// This trait defines methods for computing hashes and verifying them.
+pub trait Hashing {
+    /// Computes a hash for the given content.
+    ///
+    /// # Notes
+    ///
+    /// Implementors should return an empty string if hashing fails. This approach is suggested
+    /// to make it easy to check if the hash computation was successful. Errors are not expected,
+    /// so this method does not return a `Result`.
+    ///
+    /// # Parameters
+    ///
+    /// * `content` - The input string to hash.
+    ///
+    /// # Returns
+    ///
+    /// A `String` representing the computed hash. Returns an empty string if hashing fails.
+    fn hash(&self, content: &str) -> String;
+
+    /// Verifies whether the provided content matches the given hash.
+    ///
+    /// # Parameters
+    ///
+    /// * `content` - The original input string to verify.
+    /// * `other` - The hash to compare against.
+    ///
+    /// # Returns
+    ///
+    /// A `HashingResult` indicating whether the verification succeeded, failed or rehash needed!.
+    fn verify(&self, content: &str, other: &str) -> HashingResult;
+}
+// Update comment of the code below and make it better
 pub trait Encoding {
     const NAME: &'static str;
     type Success;
@@ -193,14 +252,6 @@ pub trait Encryption {
     fn encrypt(&self, claim: Self::Claim) -> Result<Self::Success, Self::Error>;
 
     fn decrypt<T>(&self, content: Self::Success, claim: Self::Claim) -> Result<T, Self::Error>;
-}
-
-pub trait Hashing {
-    type Error;
-
-    fn hash(&self, content: &str) -> Result<String, Self::Error>;
-
-    fn verify(&self, content: &str, other: &str) -> Result<bool, Self::Error>;
 }
 
 /// ```no_rust
