@@ -197,7 +197,7 @@ pub enum HashingResult {
 /// A trait for hashing and verifying data.
 ///
 /// This trait defines methods for computing hashes and verifying them.
-pub trait Hashing {
+pub trait Hasher {
     /// Useful for logging or marking a hashed password
     const NAME: &'static str;
 
