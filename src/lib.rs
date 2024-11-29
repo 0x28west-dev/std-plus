@@ -210,11 +210,8 @@ pub trait Hasher {
     /// so this method does not return a `Result`.
     ///
     /// # Parameters
-    ///
     /// * `content` - The input string to hash.
-    ///
     /// # Returns
-    ///
     /// A `String` representing the computed hash. Returns an empty string if hashing fails.
     fn hash(&self, content: &str) -> String;
 
